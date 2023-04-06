@@ -270,86 +270,92 @@ GO
 -----------------------------------
 -- C. Challenge Payment Question --
 -----------------------------------
-/*
-DROP TABLE IF EXISTS #payments;
+
+WITH
+    join_table --create base table
+        AS
+    (
+        SELECT 
+            s.customer_id,
+            s.plan_id,
+            p.plan_name,
+            s.start_date payment_date,
+            s.start_date,
+            LEAD(s.start_date, 1) OVER(PARTITION BY s.customer_id ORDER BY s.start_date, s.plan_id) next_date,
+            p.price amount
+        FROM [foodie_fi].[subscriptions] s
+        left join [foodie_fi].[plans] p on p.plan_id = s.plan_id
+    ),
+        new_join --filter table (deselect trial and churn)
+        AS
+    (
+        SELECT 
+            customer_id,
+            plan_id,
+            plan_name,
+            payment_date,
+            start_date,
+            CASE WHEN next_date IS NULL or next_date > '20201231' THEN '20201231' ELSE next_date END next_date,
+            amount
+        FROM join_table
+        WHERE plan_name not in ('trial', 'churn')
+    ),
+        new_join1 --add new column, 1 month before next_date
+        AS
+    (
+        SELECT 
+            customer_id,
+            plan_id,
+            plan_name,
+            payment_date,
+            start_date,
+            next_date,
+            DATEADD(MONTH, -1, next_date) next_date1,
+            amount
+        FROM new_join
+    ),
+    Date_CTE  --recursive function (for payment_date)
+        AS
+    (
+        SELECT 
+            customer_id,
+            plan_id,
+            plan_name,
+            start_Date,
+            payment_date = (SELECT TOP 1 start_date FROM new_join1 WHERE customer_id = a.customer_id AND plan_id = a.plan_id),
+            next_date, 
+            next_date1,
+            amount
+        FROM new_join1 a
+
+ 
+
+            UNION ALL 
+
+        SELECT 
+            customer_id,
+            plan_id,
+            plan_name,
+            start_Date, 
+            DATEADD(M, 1, payment_date) payment_date,
+            next_date, 
+            next_date1,
+            amount
+        FROM Date_CTE b
+        WHERE payment_date < next_date1 AND plan_id != 3
+)
+SELECT 
+    customer_id,
+    plan_id,
+    plan_name,
+    payment_date,
+    amount,
+    RANK() OVER(PARTITION BY customer_id ORDER BY customer_id, plan_id, payment_date) payment_order
+FROM Date_CTE
+WHERE YEAR(payment_date) = 2020
+ORDER BY customer_id, plan_id, payment_date;
 GO
 
-SELECT
-  customer_id,
-  plan_id,
-  plan_name,
-  CAST(payment_date AS VARCHAR),
-  CASE
-    WHEN LAG(plan_id) OVER (
-      PARTITION BY customer_id
-      ORDER BY
-        plan_id
-    ) != plan_id
-    AND DATEPART(
-      DAY,
-      payment_date - LAG(payment_date) OVER (
-        PARTITION BY customer_id
-        ORDER BY
-          plan_id
-      )
-    ) < 30 THEN amount - LAG(amount) OVER (
-      PARTITION BY customer_id
-      ORDER BY
-        plan_id
-    )
-    ELSE amount
-  END AS amount,
-  RANK() OVER(
-    PARTITION BY customer_id
-    ORDER BY
-      payment_date
-  ) AS payment_order 
-  
-INTO #payments
-FROM
-  (
-    SELECT
-      customer_id,
-      s.plan_id,
-      plan_name,
-	  (
-	  SELECT value
-	  FROM
-      GENERATE_SERIES(
-        start_date,
-        CASE
-          WHEN s.plan_id = 3 THEN start_date
-          WHEN s.plan_id = 4 THEN NULL
-          WHEN LEAD(start_date) OVER (
-            PARTITION BY customer_id
-            ORDER BY
-              start_date
-          ) IS NOT NULL THEN LEAD(start_date) OVER (
-            PARTITION BY customer_id
-            ORDER BY
-              start_date
-          )
-          ELSE '2020-12-31'
-        END,
-        1
-      )) AS payment_date,
-      price AS amount
-    FROM
-      subscriptions AS s
-      JOIN plans AS p ON s.plan_id = p.plan_id
-    WHERE
-      s.plan_id != 0
-      AND start_date < '2021-01-01'
-    GROUP BY
-      customer_id,
-      s.plan_id,
-      plan_name,
-      start_date,
-      price
-  ) AS t
-ORDER BY
-  customer_id
- */
 ----------------------------------
 -- D. Outside The Box Questions --
 ----------------------------------
@@ -504,7 +510,7 @@ GO
 
 -- What were the trigger(s) that made you cancel?
 -- What did you like about the product or service?
--- What didn�t you like about the product or service?
+-- What didnt you like about the product or service?
 -- What suggestions do you have to improve the product or service?
 -- What suggestions do you have to improve the product or service?Would you reconsider our product in the future? What would that take?
 -- Who do you think is the ideal customer for our product or service?
