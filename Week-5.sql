@@ -66,7 +66,7 @@ ORDER BY week_number ASC;
 -- 3.How many total transactions were there for each year in the dataset?
 SELECT 
 	calendar_year,
-	COUNT(transactions) count_trans
+	SUM(transactions) count_trans
 FROM clean_weekly_sales
 GROUP BY calendar_year;
 GO
