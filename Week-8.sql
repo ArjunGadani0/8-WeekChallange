@@ -364,7 +364,7 @@ AS (SELECT
 	month_year,
 	interest_name,
 	avg_comp max_index_composition,
-	CAST(ROUND(AVG(avg_comp) OVER(ORDER BY month_year), 2) AS NUMERIC(10, 2)) "3_month_moving_avg",
+	CAST(ROUND(AVG(avg_comp) OVER(ORDER BY month_year ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS NUMERIC(10, 2)) "3_month_moving_avg",
 	CONCAT(LAG(interest_name) OVER(ORDER BY month_year), ' : ', LAG(avg_comp) OVER(ORDER BY month_year)) "1_month_ago",
 	CONCAT(LAG(interest_name, 2) OVER(ORDER BY month_year), ' : ', LAG(avg_comp, 2) OVER(ORDER BY month_year)) "2_month_ago"
 FROM #tp_interests
